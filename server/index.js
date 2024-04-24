@@ -1,10 +1,16 @@
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
-const router = express.Router();
+const mongoose = require('mongoose');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+const mongoURI = 'mongodb://127.0.0.1:27017/a11yWebEvolution';
+mongoose
+  .connect(mongoURI)
+  .then(() => console.log('MongoDB connected'))
+  .catch((err) => console.log(err));
 
 app.use(cors());
 app.use(express.json());
@@ -13,33 +19,6 @@ app.use(express.json());
  * require routers
  */
 const waybackRouter = require(path.resolve(__dirname, 'routes', 'wayback.js'));
-
-//-------------------Testing area
-app.use((req, res, next) => {
-  res.locals.availableArchive = [
-    [
-      'io,codesmith)/',
-      '20150315161819',
-      'http://www.codesmith.io:80/',
-      'text/html',
-      '200',
-      'digest1',
-      'length1',
-    ],
-    [
-      'io,codesmith)/',
-      '20150510142927',
-      'http://codesmith.io:80/',
-      'text/html',
-      '200',
-      'digest2',
-      'length2',
-    ],
-  ];
-  next();
-});
-
-//-------------------------------
 
 /**
  * handle parsing request body
