@@ -3,11 +3,12 @@ const axios = require('axios');
 const puppeteer = require('puppeteer');
 const { AxePuppeteer } = require('@axe-core/puppeteer');
 const { timeout } = require('puppeteer');
-const A11yResult = require('../models/a11yResult')
+const A11yResult = require('../models/a11yResult');
+const ArchiveResult = require('../models/archiveResult');
 
 const waybackController = {};
 //set up cache for testing pupose - will be replaced by db in the future
-const cacheArchive = {};
+//const cacheArchive = {};
 // const cacheA11yResult = {};
 
 // To calculate whether to collapse query result to month or to day
@@ -31,31 +32,44 @@ const collapseCalculator = (startDate, endDate) => {
     return 'timestamp:8'; // Collapses to one result per day
   }
 };
-
+// Save ArchiveResult to db
+const saveArchiveResultsDB = async (archive) => {
+  const existingArchive = await ArchiveResult.findOne({
+    url: archive.url,
+    startDate: archive.startDate,
+    endDate: archive.endDate,
+    collapseValue: archive.collapseValue,
+  });
+  if (existingArchive) {
+    console.log('ArchiveResult already exists in the database');
+    return existingArchive;
+  } else {
+    try {
+      const newArchive = new ArchiveResult(archive);
+      await newArchive.save();
+      console.log('Archive Results saved to MongoDB');
+    } catch (err) {
+      console.error('Failed to save archive results:', err);
+    }
+  }
+};
 // Save A11yResult to db
-const saveResultsDB = async (result) => {
-  const existingResult = await A11yResult.findOne({ url: result.url, timestamp: result.timestamp });
+const saveA11yResultsDB = async (result) => {
+  const existingResult = await A11yResult.findOne({
+    url: result.url,
+    timestamp: result.timestamp,
+  });
   if (existingResult) {
     console.log('A11yResult already exists in the database');
     return existingResult;
   } else {
     try {
-        const newA11yResult = new A11yResult(result);
-        await newA11yResult.save();
-        console.log('Results saved to MongoDB');
+      const newA11yResult = new A11yResult(result);
+      await newA11yResult.save();
+      console.log('A11yResults saved to MongoDB');
     } catch (err) {
-        console.error('Failed to save results:', err);
+      console.error('Failed to save a11y results:', err);
     }
-  }
-};
-// Fetch A11yResult from db
-const fetchResultsDB = async (url) => {
-  try {
-      const results = await A11yResult.find({ url });
-      console.log('Retrieved results:', results);
-      return results;
-  } catch (err) {
-      console.error('Error retrieving results:', err);
   }
 };
 
@@ -69,20 +83,33 @@ waybackController.getArchive = async (req, res, next) => {
   // const url = 'codesmith.io';
   // const startDate = '20190101';
   // const endDate = '20240423';
-  console.log('I am cacheArchive',cacheArchive)
+  // console.log('I am cacheArchive',cacheArchive)
   const { url, startDate, endDate } = req.query;
-  const cacheArchiveKey = `${url}-${startDate}-${endDate}`;
+  // const cacheArchiveKey = `${url}-${startDate}-${endDate}`;
 
-  // Check if data for this request is cacheArchived
-  if (cacheArchive[cacheArchiveKey]) {
-    console.log('Returning cacheArchived data');
-    res.locals.avaliableArchive = cacheArchive[cacheArchiveKey];
-    return next();
-  }
+  // // Check if data for this request is cacheArchived
+  // if (cacheArchive[cacheArchiveKey]) {
+  //   console.log('Returning cacheArchived data');
+  //   res.locals.avaliableArchive = cacheArchive[cacheArchiveKey];
+  //   return next();
+  // }
 
   const collapseValue = collapseCalculator(startDate, endDate);
 
   try {
+    // Check db first to see if already have the data
+    let archiveDataDB = await ArchiveResult.findOne({
+      url: url,
+      startDate: startDate,
+      endDate: endDate,
+      collapseValue: collapseValue,
+    });
+    if (archiveDataDB) {
+      console.log('Returning data from MongoDB');
+      res.locals.avaliableArchive = archiveDataDB.data;
+      return next();
+    }
+
     const response = await axios.get(`http://web.archive.org/cdx/search/cdx`, {
       params: {
         url: url,
@@ -95,10 +122,19 @@ waybackController.getArchive = async (req, res, next) => {
         limit: -3,
         filter: 'statuscode:200',
       },
-      headers:{'User-Agent':'PostmanRuntime/7.37.3'},
+      headers: { 'User-Agent': 'PostmanRuntime/7.37.3' },
       timeout: 90000,
     });
-    cacheArchive[cacheArchiveKey] = response.data;
+
+    //cacheArchive[cacheArchiveKey] = response.data;
+    // Save result to DB
+    await saveArchiveResultsDB({
+      url: url,
+      startDate: startDate,
+      endDate: endDate,
+      collapseValue: collapseValue,
+      data: response.data
+    })
     res.locals.avaliableArchive = response.data;
     return next();
     // // uncomment if testing
@@ -177,35 +213,39 @@ waybackController.getSnapshotAndAnalyze = async (req, res, next) => {
         //   results.push(cacheA11yResult[cacheKey]);
         //   continue; // Skip the analysis and use cached data
         // }
-          // query db to check if report already exists
-        let savedResult = await A11yResult.findOne({ url: requestUrl, timestamp: timestamp });
+
+        // query db to check if report already exists
+        let savedResult = await A11yResult.findOne({
+          url: requestUrl,
+          timestamp: timestamp,
+        });
         if (savedResult) {
           console.log('Returning saved results from MongoDB');
           results.push(savedResult);
-          continue;  // Skip the analysis if already have result in MongoDB
+          continue; // Skip the analysis if already have result in MongoDB
         }
 
-        try{
+        try {
           await page.goto(requestUrl, {
             waitUntil: 'networkidle0',
             timeout: 90000,
           });
-        } catch(err){
-          console.log(`Failed to load page ${requestUrl}:`, err)
+        } catch (err) {
+          console.log(`Failed to load page ${requestUrl}:`, err);
         }
         const eachResults = await new AxePuppeteer(page).analyze();
         console.log(`Accessibility results for ${requestUrl}:`, eachResults);
-        
+
         const result = {
           url: requestUrl,
           timestamp: timestamp,
-          violations: eachResults.violations
+          violations: eachResults.violations,
         };
-  
+
         // // Cache the new results
         // cacheA11yResult[cacheKey] = result;
         results.push(result);
-        await saveResultsDB(result)
+        await saveA11yResultsDB(result);
       }
     }
 

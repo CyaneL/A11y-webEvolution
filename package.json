@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "start:backend": "nodemon server/index.js",
+    "start:backend": "nodemon server/server.js",
     "start:frontend": "vite",
     "build": "vite build",
     "serve": "vite preview"
