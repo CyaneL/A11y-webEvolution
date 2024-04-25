@@ -147,3 +147,9 @@ form {
     }
   }
 }
+.trendLine{
+  display: flex;
+  color: #abd1c6;
+  flex-direction: column;
+  align-items: center;
+}
