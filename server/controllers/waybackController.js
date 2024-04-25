@@ -119,7 +119,7 @@ waybackController.getArchive = async (req, res, next) => {
         to: endDate,
         // filter collapse
         collapse: collapseValue,
-        limit: -3,
+        limit: -5,
         filter: 'statuscode:200',
       },
       headers: { 'User-Agent': 'PostmanRuntime/7.37.3' },

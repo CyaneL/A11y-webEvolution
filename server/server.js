@@ -2,9 +2,12 @@ const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+// const waybackRouter = require('./routes/wayback.js');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+
 
 const mongoURI = 'mongodb://127.0.0.1:27017/a11yWebEvolution';
 mongoose
@@ -12,6 +15,9 @@ mongoose
   .then(() => console.log('MongoDB connected'))
   .catch((err) => console.log(err));
 
+  /**
+ * handle parsing request body and cross-origin resource sharing
+ */
 app.use(cors());
 app.use(express.json());
 
@@ -20,9 +26,7 @@ app.use(express.json());
  */
 const waybackRouter = require(path.resolve(__dirname, 'routes', 'wayback.js'));
 
-/**
- * handle parsing request body
- */
+
 app.use(
   '/api/wayback',
   (req, res, next) => {
@@ -32,7 +36,7 @@ app.use(
   waybackRouter
 );
 
-app.get('/', (req, res) => res.send('Home Page'));
+app.get('/', (req, res) => res.sendFile(path.resolve(__dirname,'../client/index.html')));
 
 // catch-all route handler for any requests to an unknown route
 app.use('*', (req, res) => res.sendStatus(404));
