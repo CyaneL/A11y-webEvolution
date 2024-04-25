@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import DateFnsUtils from '@date-io/date-fns';
+
 
 const Form = ({ onSubmit }) => {
   const [url, setUrl] = useState('');
@@ -8,7 +8,12 @@ const Form = ({ onSubmit }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(url, startDate, endDate);
+    // Handle date format from 'yyyy-mm-dd' to 'yyyyMMdd'
+    const formattedStartDate = startDate.replaceAll('-', '');
+    const formattedEndDate = endDate.replaceAll('-', '');
+    console.log(`Formatted Start Date: ${formattedStartDate}`);
+    console.log(`Formatted End Date: ${formattedEndDate}`);
+    onSubmit(url, formattedStartDate, formattedEndDate);
   };
 
   const handleReset = () => {
@@ -22,7 +27,7 @@ const Form = ({ onSubmit }) => {
     <form onSubmit={handleSubmit}>
       <div className='URL'>
       <label>
-        URL:
+        URL: 
         <input
           className='urlfield'
           type="text"
@@ -35,7 +40,7 @@ const Form = ({ onSubmit }) => {
       </div>
       <div className='Dates'>
       <label className='startDate'>
-        Start Date:
+        Start Date: 
         <input
           type="date"
           value={startDate}
@@ -44,7 +49,7 @@ const Form = ({ onSubmit }) => {
         />
       </label>
       <label className='endDate'>
-        End Date:
+        End Date: 
         <input
           type="date"
           value={endDate}
