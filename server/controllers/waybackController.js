@@ -7,9 +7,6 @@ const A11yResult = require('../models/a11yResult');
 const ArchiveResult = require('../models/archiveResult');
 
 const waybackController = {};
-//set up cache for testing pupose - will be replaced by db in the future
-//const cacheArchive = {};
-// const cacheA11yResult = {};
 
 // To calculate whether to collapse query result to month or to day
 function parseDate(date) {
@@ -28,9 +25,8 @@ const collapseCalculator = (startDate, endDate) => {
   const timeDiff = end - start;
   if (timeDiff > oneYear) {
     return 'timestamp:6'; // Collapses to one result per month
-  } else {
-    return 'timestamp:8'; // Collapses to one result per day
   }
+  return 'timestamp:8'; // Collapses to one result per day
 };
 // Save ArchiveResult to db
 const saveArchiveResultsDB = async (archive) => {
@@ -43,14 +39,13 @@ const saveArchiveResultsDB = async (archive) => {
   if (existingArchive) {
     console.log('ArchiveResult already exists in the database');
     return existingArchive;
-  } else {
-    try {
-      const newArchive = new ArchiveResult(archive);
-      await newArchive.save();
-      console.log('Archive Results saved to MongoDB');
-    } catch (err) {
-      console.error('Failed to save archive results:', err);
-    }
+  }
+  try {
+    const newArchive = new ArchiveResult(archive);
+    await newArchive.save();
+    console.log('Archive Results saved to MongoDB');
+  } catch (err) {
+    console.error('Failed to save archive results:', err);
   }
 };
 // Save A11yResult to db
@@ -79,20 +74,7 @@ const saveA11yResultsDB = async (result) => {
  */
 
 waybackController.getArchive = async (req, res, next) => {
-  // // hardcoded testing for now
-  // const url = 'codesmith.io';
-  // const startDate = '20190101';
-  // const endDate = '20240423';
-  // console.log('I am cacheArchive',cacheArchive)
   const { url, startDate, endDate } = req.query;
-  // const cacheArchiveKey = `${url}-${startDate}-${endDate}`;
-
-  // // Check if data for this request is cacheArchived
-  // if (cacheArchive[cacheArchiveKey]) {
-  //   console.log('Returning cacheArchived data');
-  //   res.locals.avaliableArchive = cacheArchive[cacheArchiveKey];
-  //   return next();
-  // }
 
   const collapseValue = collapseCalculator(startDate, endDate);
 
@@ -126,21 +108,17 @@ waybackController.getArchive = async (req, res, next) => {
       timeout: 90000,
     });
 
-    //cacheArchive[cacheArchiveKey] = response.data;
     // Save result to DB
     await saveArchiveResultsDB({
       url: url,
       startDate: startDate,
       endDate: endDate,
       collapseValue: collapseValue,
-      data: response.data
-    })
+      data: response.data,
+    });
     res.locals.avaliableArchive = response.data;
     return next();
-    // // uncomment if testing
-    //console.log(response);
   } catch (err) {
-    //console.log(err);
     return next({
       log: `Failed to fetch data from wayback-cdx-server: ${err}`,
       status: 500,
@@ -150,49 +128,6 @@ waybackController.getArchive = async (req, res, next) => {
 };
 
 waybackController.getSnapshotAndAnalyze = async (req, res, next) => {
-  // //-----------testing-----------
-  // const testing = [
-  //   [
-  //     'urlkey',
-  //     'timestamp',
-  //     'original',
-  //     'mimetype',
-  //     'statuscode',
-  //     'digest',
-  //     'length',
-  //   ],
-  //   [
-  //     'io,codesmith)/',
-  //     '20240106082607',
-  //     'https://www.codesmith.io/',
-  //     'text/html',
-  //     '200',
-  //     'PWLXA2TBWAFVG446SWPGOWCIIPVEH2A2',
-  //     '33501',
-  //   ],
-  //   [
-  //     'io,codesmith)/',
-  //     '20240202213538',
-  //     'https://www.codesmith.io/',
-  //     'text/html',
-  //     '200',
-  //     'NQVCNYBAY7FTMB62VLNJ5GELKAYWDLSW',
-  //     '42487',
-  //   ],
-  //   [
-  //     'io,codesmith)/',
-  //     '20240408164022',
-  //     'https://www.codesmith.io/',
-  //     'text/html',
-  //     '200',
-  //     'FOOJ3JOYRVVIY57DO2BC7UNJMWU5WU3A',
-  //     '41371',
-  //   ],
-  // ];
-
-  // testing.shift(); // remove header
-  // const toTest = testing;
-  //-----------testing end -----------
   res.locals.avaliableArchive.shift(); //use shift to remove header
   const toTest = res.locals.avaliableArchive;
   const results = [];
@@ -206,14 +141,6 @@ waybackController.getSnapshotAndAnalyze = async (req, res, next) => {
         const timestamp = element[1];
         const targetUrl = element[2];
         const requestUrl = `http://web.archive.org/web/${timestamp}/${targetUrl}`;
-        // //set up cache using the digest of the fetched data from wayback API
-        // const cacheKey = element[5]
-        // if (cacheA11yResult[cacheKey]) {
-        //   console.log('Returning cached accessibility results');
-        //   results.push(cacheA11yResult[cacheKey]);
-        //   continue; // Skip the analysis and use cached data
-        // }
-
         // query db to check if report already exists
         let savedResult = await A11yResult.findOne({
           url: requestUrl,
@@ -242,8 +169,6 @@ waybackController.getSnapshotAndAnalyze = async (req, res, next) => {
           violations: eachResults.violations,
         };
 
-        // // Cache the new results
-        // cacheA11yResult[cacheKey] = result;
         results.push(result);
         await saveA11yResultsDB(result);
       }
@@ -277,7 +202,7 @@ waybackController.getSnapshot = async (req, res, next) => {
         const requestUrl = `http://web.archive.org/web/${timestamp}/${targetUrl}`;
         //console.log(`I'm request URL: ${requestUrl}`)
         const response = await axios.get(requestUrl);
-        //console.log('I am html fetched:',response);
+        // console.log('I am html fetched:',response);
         resultSnapshot.push(response.data);
       }
     }
